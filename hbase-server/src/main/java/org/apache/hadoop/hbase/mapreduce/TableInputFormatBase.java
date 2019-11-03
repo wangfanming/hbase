@@ -177,9 +177,10 @@ extends InputFormat<ImmutableBytesWritable, Result> {
     this.nameServer =
       context.getConfiguration().get("hbase.nameserver.address", null);
 
+    //创建RegionSizeCalculator，计算每个region的大小
     RegionSizeCalculator sizeCalculator = new RegionSizeCalculator(table);
 
-    
+    //获取所有startKey和endKey对
     Pair<byte[][], byte[][]> keys = getStartEndKeys();
     if (keys == null || keys.getFirst() == null ||
         keys.getFirst().length == 0) {
@@ -195,11 +196,13 @@ extends InputFormat<ImmutableBytesWritable, Result> {
       splits.add(split);
       return splits;
     }
+    //创建大小为region个数的集合splits
     List<InputSplit> splits = new ArrayList<InputSplit>(keys.getFirst().length);
     for (int i = 0; i < keys.getFirst().length; i++) {
       if ( !includeRegionInSplit(keys.getFirst()[i], keys.getSecond()[i])) {
         continue;
       }
+      //获取region位置
       HRegionLocation location = table.getRegionLocation(keys.getFirst()[i], false);
       // The below InetSocketAddress creation does a name resolution.
       InetSocketAddress isa = new InetSocketAddress(location.getHostname(), location.getPort());
@@ -215,16 +218,19 @@ extends InputFormat<ImmutableBytesWritable, Result> {
         regionLocation = location.getHostname();
       }
 
+      //获取所设置的scan的startRowKey和endRowKey
       byte[] startRow = scan.getStartRow();
       byte[] stopRow = scan.getStopRow();
-      // determine if the given start an stop key fall into the region
+      // determine if the given start an stop key fall into the region(确定给定的起始和终止的key在一个region里)
       if ((startRow.length == 0 || keys.getSecond()[i].length == 0 ||
           Bytes.compareTo(startRow, keys.getSecond()[i]) < 0) &&
           (stopRow.length == 0 ||
            Bytes.compareTo(stopRow, keys.getFirst()[i]) > 0)) {
+        //获取当前分片的起始位置
         byte[] splitStart = startRow.length == 0 ||
           Bytes.compareTo(keys.getFirst()[i], startRow) >= 0 ?
             keys.getFirst()[i] : startRow;
+        //获得当前分片的结束位置
         byte[] splitStop = (stopRow.length == 0 ||
           Bytes.compareTo(keys.getSecond()[i], stopRow) <= 0) &&
           keys.getSecond()[i].length > 0 ?
@@ -232,6 +238,7 @@ extends InputFormat<ImmutableBytesWritable, Result> {
 
         byte[] regionName = location.getRegionInfo().getRegionName();
         long regionSize = sizeCalculator.getRegionSize(regionName);
+        //构建TableSplit，并将分片加入list中
         TableSplit split = new TableSplit(table.getName(),
           splitStart, splitStop, regionLocation, regionSize);
         splits.add(split);
